@@ -5,6 +5,8 @@ license: MIT
 license-file: LICENSE
 author: birdgg
 maintainer: birdeggegg@gmail.com
+homepage: https://github.com/birdgg/effectful-sqlite
+bug-reports: https://github.com/birdgg/effectful-sqlite/issues
 -- copyright:
 category: Database
 build-type: Simple
