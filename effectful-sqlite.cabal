@@ -1,0 +1,58 @@
+cabal-version: 3.0
+name: effectful-sqlite
+version: 0.1.0.0
+license: MIT
+license-file: LICENSE
+author: birdgg
+maintainer: birdeggegg@gmail.com
+-- copyright:
+category: Database
+build-type: Simple
+extra-doc-files: CHANGELOG.md
+
+common warnings
+  ghc-options: -Wall
+
+common deps
+  build-depends:
+    base,
+    effectful-core,
+    effectful-th,
+    sqlite-simple,
+    unliftio-pool,
+
+common extensions
+  default-extensions:
+    DataKinds
+    FlexibleContexts
+    GADTs
+    LambdaCase
+    RankNTypes
+    ScopedTypeVariables
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+
+library
+  import:
+    warnings
+    , extensions
+    , deps
+
+  exposed-modules:
+    Effectful.SQLite
+    Effectful.SQLite.Connection
+    Effectful.SQLite.Connection.Pool
+
+  hs-source-dirs: src
+  default-language: Haskell2010
+
+executable effectful-sqlite
+  import: warnings,deps, extensions
+  main-is: Main.hs
+  build-depends:
+    base ^>=4.21.0.0,
+    effectful-sqlite,
+
+  hs-source-dirs: app
+  default-language: Haskell2010
