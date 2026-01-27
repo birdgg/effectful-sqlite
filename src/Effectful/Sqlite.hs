@@ -55,15 +55,17 @@ module Effectful.Sqlite
 
     -- * Re-exports from sqlite-simple
   , Connection
-  , FromRow
-  , ToRow
   , Query
   , Only (..)
   , NamedParam (..)
+    -- ** Row parsing
+  , FromRow (..)
+  , ToRow (..)
   , field
+  , SQLData (..)
   )
 where
 
-import Database.SQLite.Simple (Connection, FromRow, NamedParam (..), Only (..), Query, ToRow, field)
+import Database.SQLite.Simple (Connection, FromRow (..), NamedParam (..), Only (..), Query, SQLData (..), ToRow (..), field)
 import Effectful.Sqlite.Effect
 import Effectful.Sqlite.Migration.Types
