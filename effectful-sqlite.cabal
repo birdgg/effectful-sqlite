@@ -1,0 +1,61 @@
+cabal-version: 3.4
+name: effectful-sqlite
+version: 0.1.0.0
+synopsis: Effectful bindings for SQLite with connection pooling and migrations
+description:
+  This library provides effectful bindings for SQLite database operations,
+  including connection pooling via resource-pool and a migration system.
+homepage: https://github.com/birdgg/effectful-sqlite
+license: MIT
+license-file: LICENSE
+author: birdgg
+maintainer: birdeggegg@gmail.com
+build-type: Simple
+extra-doc-files: README.md
+
+common common-extensions
+  default-extensions:
+    DataKinds
+    DerivingStrategies
+    DuplicateRecordFields
+    GADTs
+    LambdaCase
+    OverloadedRecordDot
+    OverloadedStrings
+    TypeFamilies
+
+  default-language: GHC2024
+
+common common-ghc-options
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -fhide-source-paths
+
+library
+  import: common-extensions, common-ghc-options
+  hs-source-dirs: src
+  exposed-modules:
+    Effectful.Sqlite
+    Effectful.Sqlite.Effect
+    Effectful.Sqlite.Internal
+    Effectful.Sqlite.Migration.Runner
+    Effectful.Sqlite.Migration.Types
+    Effectful.Sqlite.Types
+
+  build-depends:
+    base >= 4.17 && < 5,
+    bytestring >= 0.11,
+    containers >= 0.6,
+    directory >= 1.3,
+    effectful >= 2.3,
+    effectful-core >= 2.3,
+    effectful-th >= 1.0,
+    filepath >= 1.4,
+    resource-pool >= 0.4,
+    sqlite-simple >= 0.4.18,
+    text >= 2.0,
+    time >= 1.12,
