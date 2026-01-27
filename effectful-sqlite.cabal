@@ -41,15 +41,18 @@ library
   exposed-modules:
     Effectful.Sqlite
     Effectful.Sqlite.Effect
-    Effectful.Sqlite.Internal
     Effectful.Sqlite.Migration.Runner
     Effectful.Sqlite.Migration.Types
     Effectful.Sqlite.Types
+
+  other-modules:
+    Effectful.Sqlite.Internal
 
   build-depends:
     base >= 4.17 && < 5,
     bytestring >= 0.11,
     containers >= 0.6,
+    direct-sqlite >= 2.3,
     directory >= 1.3,
     effectful >= 2.3,
     effectful-core >= 2.3,

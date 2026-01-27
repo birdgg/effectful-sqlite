@@ -1,4 +1,65 @@
--- | Effectful bindings for SQLite with connection pooling and migrations
+-- |
+-- Module      : Effectful.Sqlite
+-- Description : Effectful bindings for SQLite with connection pooling and migrations
+-- Copyright   : (c) birdgg, 2024
+-- License     : MIT
+-- Maintainer  : birdeggegg@gmail.com
+--
+-- This library provides type-safe SQLite database bindings for the
+-- @effectful@ ecosystem, with support for connection pooling and migrations.
+--
+-- == Quick Start
+--
+-- @
+-- import Data.Pool qualified as Pool
+-- import Database.SQLite.Simple qualified as SQL
+-- import Effectful
+-- import Effectful.Sqlite
+--
+-- main :: IO ()
+-- main = do
+--   -- Create a connection pool
+--   pool <- Pool.newPool $ Pool.defaultPoolConfig
+--     (SQL.open "app.db")
+--     SQL.close
+--     300   -- idle timeout (seconds)
+--     10    -- max connections
+--
+--   -- Run database operations
+--   runEff . runSQLite pool $ do
+--     -- Run migrations
+--     runMigrations "migrations/"
+--
+--     -- Query data
+--     users <- query_ "SELECT id, name FROM users"
+--     liftIO $ print users
+--
+--     -- Insert data
+--     execute "INSERT INTO users (name) VALUES (?)" (Only "Alice")
+--
+--     -- Transactions
+--     withTransaction $ do
+--       execute "UPDATE accounts SET balance = balance - 100 WHERE id = ?" (Only 1)
+--       execute "UPDATE accounts SET balance = balance + 100 WHERE id = ?" (Only 2)
+-- @
+--
+-- == Handlers
+--
+-- Three handlers are provided for different use cases:
+--
+-- * 'runSQLite' - Uses a connection pool (recommended for production)
+-- * 'runSQLiteWithConnection' - Uses a single connection (useful for testing)
+-- * 'runSQLiteWithPath' - Auto-manages connection lifecycle (one-off scripts)
+--
+-- == Migrations
+--
+-- Place SQL migration files in a directory with the naming format:
+--
+-- @
+-- {14-digit-version}_{name}.sql
+-- @
+--
+-- For example: @20240114120000_create_users.sql@
 module Effectful.Sqlite
   ( -- * Effect
     SQLite
