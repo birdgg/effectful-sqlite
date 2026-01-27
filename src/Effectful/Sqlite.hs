@@ -119,14 +119,26 @@ module Effectful.Sqlite
   , Query
   , Only (..)
   , NamedParam (..)
+  , (:.) (..)
     -- ** Row parsing
   , FromRow (..)
   , ToRow (..)
   , field
   , SQLData (..)
+    -- ** Field parsing
+  , FromField (..)
+  , ToField (..)
+  , Field
+  , fieldData
+  , ResultError (..)
+  , returnError
+  , Ok (..)
   )
 where
 
-import Database.SQLite.Simple (Connection, FromRow (..), NamedParam (..), Only (..), Query, SQLData (..), ToRow (..), field)
+import Database.SQLite.Simple (Connection, FromRow (..), NamedParam (..), Only (..), Query, SQLData (..), ToRow (..), field, (:.) (..))
+import Database.SQLite.Simple.FromField (FromField (..), Field, fieldData, ResultError (..), returnError)
+import Database.SQLite.Simple.ToField (ToField (..))
+import Database.SQLite.Simple.Ok (Ok (..))
 import Effectful.Sqlite.Effect
 import Effectful.Sqlite.Migration.Types
