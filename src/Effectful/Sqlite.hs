@@ -8,6 +8,17 @@
 -- This library provides type-safe SQLite database bindings for the
 -- @effectful@ ecosystem, with support for connection pooling and migrations.
 --
+-- == Architecture
+--
+-- The library uses a two-layer effect design:
+--
+-- * 'SQLite' - Outer layer for connection pool management
+-- * 'SQLiteTransaction' - Inner layer for database operations
+--
+-- This design enforces transaction boundaries at compile time. All database
+-- operations require the 'SQLiteTransaction' effect, which can only be
+-- introduced via 'transact', 'transactImmediate', 'transactExclusive', or 'notransact'.
+--
 -- == Quick Start
 --
 -- @
@@ -30,15 +41,16 @@
 --     -- Run migrations
 --     runMigrations "migrations/"
 --
---     -- Query data
---     users <- query_ "SELECT id, name FROM users"
+--     -- Query data (without transaction)
+--     users <- notransact $ query_ "SELECT id, name FROM users"
 --     liftIO $ print users
 --
---     -- Insert data
---     execute "INSERT INTO users (name) VALUES (?)" (Only "Alice")
+--     -- Insert data (with transaction)
+--     transact $ do
+--       execute "INSERT INTO users (name) VALUES (?)" (Only "Alice")
 --
---     -- Transactions
---     withTransaction $ do
+--     -- Transactions for writes
+--     transact $ do
 --       execute "UPDATE accounts SET balance = balance - 100 WHERE id = ?" (Only 1)
 --       execute "UPDATE accounts SET balance = balance + 100 WHERE id = ?" (Only 2)
 -- @
@@ -51,6 +63,13 @@
 -- * 'runSQLiteWithConnection' - Uses a single connection (useful for testing)
 -- * 'runSQLiteWithPath' - Auto-manages connection lifecycle (one-off scripts)
 --
+-- == Transaction Boundaries
+--
+-- * 'transact' - DEFERRED transaction (default SQLite mode)
+-- * 'transactImmediate' - IMMEDIATE transaction (acquires write lock immediately)
+-- * 'transactExclusive' - EXCLUSIVE transaction (prevents all other access)
+-- * 'notransact' - Direct connection access without transaction (auto-commit)
+--
 -- == Migrations
 --
 -- Place SQL migration files in a directory with the naming format:
@@ -61,8 +80,9 @@
 --
 -- For example: @20240114120000_create_users.sql@
 module Effectful.Sqlite
-  ( -- * Effect
+  ( -- * Effects
     SQLite
+  , SQLiteTransaction
 
     -- * Handlers
   , runSQLite
@@ -73,6 +93,12 @@ module Effectful.Sqlite
     -- * Retry Configuration
   , RetryConfig (..)
   , defaultRetryConfig
+
+    -- * Transaction Boundaries
+  , transact
+  , transactImmediate
+  , transactExclusive
+  , notransact
 
     -- * Query Operations
   , query
@@ -97,27 +123,20 @@ module Effectful.Sqlite
   , forEach_
   , forEachNamed
 
-    -- * Transaction
-  , withTransaction
-  , withSavepoint
-  , withImmediateTransaction
-  , withExclusiveTransaction
-  , begin
-  , commit
-  , rollback
+    -- * Nested Transactions
+  , savepoint
 
     -- * Migration
   , runMigrations
   , getMigrationStatus
   , getPendingMigrations
-  , createMigrationsTable
   , Migration (..)
   , MigrationRecord (..)
   , MigrationResult (..)
   , MigrationError (..)
 
     -- * Low-level
-  , withConnection
+  , getRawConnection
 
     -- * Re-exports from sqlite-simple
   , Connection
@@ -142,9 +161,9 @@ module Effectful.Sqlite
 where
 
 import Database.SQLite.Simple (Connection, FromRow (..), NamedParam (..), Only (..), Query, SQLData (..), ToRow (..), field, (:.) (..))
-import Database.SQLite.Simple.FromField (FromField (..), Field, fieldData, ResultError (..), returnError)
-import Database.SQLite.Simple.ToField (ToField (..))
+import Database.SQLite.Simple.FromField (Field, FromField (..), ResultError (..), fieldData, returnError)
 import Database.SQLite.Simple.Ok (Ok (..))
+import Database.SQLite.Simple.ToField (ToField (..))
 import Effectful.Sqlite.Effect
 import Effectful.Sqlite.Migration.Types
 import Effectful.Sqlite.Retry (RetryConfig (..), defaultRetryConfig)

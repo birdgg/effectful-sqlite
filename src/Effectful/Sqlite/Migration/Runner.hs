@@ -88,6 +88,7 @@ runMigrations conn migrationsDir = do
 -- Results are sorted by version in ascending order.
 getPendingMigrations :: Connection -> FilePath -> IO (Either MigrationError [Migration])
 getPendingMigrations conn migrationsDir = do
+  createMigrationsTable conn
   migrationsResult <- loadMigrationsFromDir migrationsDir
   case migrationsResult of
     Left err -> pure $ Left err
