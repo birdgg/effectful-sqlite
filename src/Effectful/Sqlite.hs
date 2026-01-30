@@ -66,8 +66,13 @@ module Effectful.Sqlite
 
     -- * Handlers
   , runSQLite
+  , runSQLiteWithRetry
   , runSQLiteWithConnection
   , runSQLiteWithPath
+
+    -- * Retry Configuration
+  , RetryConfig (..)
+  , defaultRetryConfig
 
     -- * Query Operations
   , query
@@ -142,3 +147,4 @@ import Database.SQLite.Simple.ToField (ToField (..))
 import Database.SQLite.Simple.Ok (Ok (..))
 import Effectful.Sqlite.Effect
 import Effectful.Sqlite.Migration.Types
+import Effectful.Sqlite.Retry (RetryConfig (..), defaultRetryConfig)

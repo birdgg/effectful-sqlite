@@ -5,6 +5,7 @@ module Effectful.Sqlite.Internal
   ( -- * Connection Strategy
     ConnStrategy (..)
   , poolStrategy
+  , poolStrategyWithRetry
   , singleConnStrategy
   , strategyWithConn
   , strategyUnliftWithConn
@@ -30,6 +31,7 @@ import Database.SQLite.Simple (Connection)
 import Database.SQLite.Simple qualified as SQL
 import Effectful
 import Effectful.Dispatch.Dynamic (LocalEnv, localSeqUnliftIO)
+import Effectful.Sqlite.Retry (RetryConfig, retryOnBusy)
 
 -- | Transaction context for connection pooling.
 --
@@ -99,6 +101,30 @@ poolStrategy pool txCtx =
     , _runEndTx = endManualTx pool txCtx
     }
 
+-- | Create a connection strategy using a connection pool with retry on busy.
+--
+-- This strategy extends 'poolStrategy' with automatic retry logic for
+-- SQLite @ErrorBusy@ errors. When the database is locked, operations
+-- will be retried according to the provided 'RetryConfig'.
+--
+-- Use this strategy in production environments with concurrent access
+-- to avoid transient failures due to database locking.
+poolStrategyWithRetry ::
+  (IOE :> es) =>
+  RetryConfig ->
+  Pool Connection ->
+  TxContext ->
+  ConnStrategy es
+poolStrategyWithRetry retryConfig pool txCtx =
+  ConnStrategy
+    { _runWithConn = withPoolConnRetry retryConfig pool txCtx
+    , _runUnliftWithConn = unliftWithPoolConnRetry retryConfig pool txCtx
+    , _runBegin = do
+        conn <- beginManualTx pool txCtx
+        liftIO $ retryOnBusy retryConfig $ SQL.execute_ conn "BEGIN"
+    , _runEndTx = endManualTx pool txCtx
+    }
+
 -- | Create a connection strategy using a single connection.
 --
 -- This strategy:
@@ -132,6 +158,21 @@ withPoolConn pool txCtx f = liftIO $ do
     Just (conn, _localPool) -> f conn
     Nothing -> Pool.withResource pool f
 
+-- | Run an IO action with retry on busy using a connection from the pool
+withPoolConnRetry ::
+  (IOE :> es) =>
+  RetryConfig ->
+  Pool Connection ->
+  TxContext ->
+  (Connection -> IO a) ->
+  Eff es a
+withPoolConnRetry retryConfig pool txCtx f = liftIO $ do
+  mConn <- readIORef txCtx
+  case mConn of
+    Just (conn, _localPool) -> retryOnBusy retryConfig (f conn)
+    Nothing -> Pool.withResource pool $ \conn ->
+      retryOnBusy retryConfig (f conn)
+
 -- | Run an effectful action with a dedicated transaction connection
 unliftWithPoolConn ::
   (IOE :> es) =>
@@ -149,6 +190,32 @@ unliftWithPoolConn pool txCtx env f =
         writeIORef txCtx Nothing
         Pool.putResource localPool conn)
       (f conn unlift)
+
+-- | Run an effectful action with a dedicated transaction connection.
+--
+-- Note: This function does NOT wrap the user callback with retry logic.
+-- Retry on busy is handled at the individual SQL operation level via
+-- 'withPoolConnRetry'. Wrapping the entire transaction callback would be
+-- problematic because:
+--
+-- 1. User code inside transactions may not be idempotent
+-- 2. Non-SQLite exceptions would be incorrectly caught
+-- 3. The retry semantics would be confusing (retry entire transaction vs operation)
+--
+-- For transaction-level retry (e.g., retry entire transaction on serialization
+-- failure), users should implement their own retry logic at the application level.
+unliftWithPoolConnRetry ::
+  (IOE :> es) =>
+  RetryConfig ->
+  Pool Connection ->
+  TxContext ->
+  LocalEnv localEs es ->
+  (Connection -> (forall r. Eff localEs r -> IO r) -> IO a) ->
+  Eff es a
+unliftWithPoolConnRetry _retryConfig pool txCtx env f =
+  -- Delegate to the non-retry version. Individual SQL operations within
+  -- the callback will use 'withPoolConnRetry' which handles retry properly.
+  unliftWithPoolConn pool txCtx env f
 
 -- | Run an IO action with a single connection (no pool)
 withSingleConn ::

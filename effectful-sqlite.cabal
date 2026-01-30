@@ -43,6 +43,7 @@ library
     Effectful.Sqlite.Effect
     Effectful.Sqlite.Migration.Runner
     Effectful.Sqlite.Migration.Types
+    Effectful.Sqlite.Retry
     Effectful.Sqlite.Types
 
   other-modules:
@@ -58,6 +59,7 @@ library
     effectful-core >= 2.3,
     effectful-th >= 1.0,
     filepath >= 1.4,
+    random >= 1.2,
     resource-pool >= 0.4,
     sqlite-simple >= 0.4.18,
     text >= 2.0,

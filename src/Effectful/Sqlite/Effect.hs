@@ -46,6 +46,7 @@ module Effectful.Sqlite.Effect
 
     -- * Handlers
   , runSQLite
+  , runSQLiteWithRetry
   , runSQLiteWithConnection
   , runSQLiteWithPath
 
@@ -100,7 +101,8 @@ import Database.SQLite.Simple qualified as SQL
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Exception qualified as E
-import Effectful.Sqlite.Internal (ConnStrategy, poolStrategy, singleConnStrategy, strategyBegin, strategyEndTx, strategyUnliftWithConn, strategyWithConn)
+import Effectful.Sqlite.Internal (ConnStrategy, poolStrategy, poolStrategyWithRetry, singleConnStrategy, strategyBegin, strategyEndTx, strategyUnliftWithConn, strategyWithConn)
+import Effectful.Sqlite.Retry (RetryConfig)
 import Effectful.Sqlite.Migration.Runner qualified as M
 import Effectful.Sqlite.Migration.Types
 import Effectful.Sqlite.Types (ExecuteResult (..))
@@ -213,6 +215,52 @@ runSQLite ::
 runSQLite pool action = do
   txCtx <- liftIO $ newIORef Nothing
   let strategy = poolStrategy pool txCtx
+  interpret (handleSQLiteWith strategy) action
+
+-- | Run SQLite effect using a connection pool with retry on busy.
+--
+-- This handler extends 'runSQLite' with automatic retry logic for SQLite
+-- @ErrorBusy@ errors. When the database is locked by another connection,
+-- operations will be retried according to the provided 'RetryConfig'.
+--
+-- This is recommended for production environments with concurrent database
+-- access, as it handles transient locking issues gracefully.
+--
+-- @
+-- import Data.Pool qualified as Pool
+-- import Database.SQLite.Simple qualified as SQL
+-- import Effectful.Sqlite
+--
+-- pool <- Pool.newPool $ Pool.defaultPoolConfig
+--   (SQL.open "app.db")
+--   SQL.close
+--   300
+--   10
+--
+-- -- Use default retry configuration
+-- runEff . runSQLiteWithRetry defaultRetryConfig pool $ do
+--   users <- query_ "SELECT * FROM users"
+--   ...
+--
+-- -- Or customize retry behavior
+-- let config = RetryConfig
+--       { maxRetries = 5
+--       , initialDelay = 100_000
+--       , backoffFactor = 2.0
+--       , maxDelay = 2_000_000
+--       }
+-- runEff . runSQLiteWithRetry config pool $ do
+--   execute "INSERT INTO users (name) VALUES (?)" (Only "Alice")
+-- @
+runSQLiteWithRetry ::
+  (HasCallStack, IOE :> es) =>
+  RetryConfig ->
+  Pool Connection ->
+  Eff (SQLite : es) a ->
+  Eff es a
+runSQLiteWithRetry retryConfig pool action = do
+  txCtx <- liftIO $ newIORef Nothing
+  let strategy = poolStrategyWithRetry retryConfig pool txCtx
   interpret (handleSQLiteWith strategy) action
 
 -- | Run SQLite effect using a single connection (no pool).
