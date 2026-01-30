@@ -12,56 +12,32 @@
 --
 -- The library uses a two-layer effect design:
 --
--- * 'SQLite' - Outer layer for connection pool management
--- * 'SQLiteTransaction' - Inner layer for database operations
+-- * 'Sqlite' - Outer layer for connection pool management
+-- * 'SqliteTransaction' - Inner layer for database operations
 --
 -- This design enforces transaction boundaries at compile time. All database
--- operations require the 'SQLiteTransaction' effect, which can only be
+-- operations require the 'SqliteTransaction' effect, which can only be
 -- introduced via 'transact', 'transactImmediate', 'transactExclusive', or 'notransact'.
 --
 -- == Quick Start
 --
 -- @
--- import Data.Pool qualified as Pool
--- import Database.SQLite.Simple qualified as SQL
 -- import Effectful
 -- import Effectful.Sqlite
 --
 -- main :: IO ()
--- main = do
---   -- Create a connection pool
---   pool <- Pool.newPool $ Pool.defaultPoolConfig
---     (SQL.open "app.db")
---     SQL.close
---     300   -- idle timeout (seconds)
---     10    -- max connections
+-- main = runEff . runLog "app" logger . runConcurrent . runSqlite (DbFile "app.db") $ do
+--   -- Run migrations
+--   runMigrations "migrations/"
 --
---   -- Run database operations
---   runEff . runSQLite pool $ do
---     -- Run migrations
---     runMigrations "migrations/"
+--   -- Query data (without transaction)
+--   users <- notransact $ query_ "SELECT id, name FROM users"
+--   liftIO $ print users
 --
---     -- Query data (without transaction)
---     users <- notransact $ query_ "SELECT id, name FROM users"
---     liftIO $ print users
---
---     -- Insert data (with transaction)
---     transact $ do
---       execute "INSERT INTO users (name) VALUES (?)" (Only "Alice")
---
---     -- Transactions for writes
---     transact $ do
---       execute "UPDATE accounts SET balance = balance - 100 WHERE id = ?" (Only 1)
---       execute "UPDATE accounts SET balance = balance + 100 WHERE id = ?" (Only 2)
+--   -- Insert data (with transaction)
+--   transact $ do
+--     execute "INSERT INTO users (name) VALUES (?)" (Only "Alice")
 -- @
---
--- == Handlers
---
--- Three handlers are provided for different use cases:
---
--- * 'runSQLite' - Uses a connection pool (recommended for production)
--- * 'runSQLiteWithConnection' - Uses a single connection (useful for testing)
--- * 'runSQLiteWithPath' - Auto-manages connection lifecycle (one-off scripts)
 --
 -- == Transaction Boundaries
 --
@@ -81,18 +57,16 @@
 -- For example: @20240114120000_create_users.sql@
 module Effectful.Sqlite
   ( -- * Effects
-    SQLite
-  , SQLiteTransaction
+    Sqlite
+  , SqliteTransaction
 
     -- * Handlers
-  , runSQLite
-  , runSQLiteWithRetry
-  , runSQLiteWithConnection
-  , runSQLiteWithPath
+  , runSqlite
+  , runSqliteDebug
 
-    -- * Retry Configuration
-  , RetryConfig (..)
-  , defaultRetryConfig
+    -- * Connection Pool
+  , SqlitePool (..)
+  , withSqlPool
 
     -- * Transaction Boundaries
   , transact
@@ -110,18 +84,8 @@ module Effectful.Sqlite
   , executeNamed
   , executeNamedReturningChanges
 
-    -- * Execute with Result
-  , ExecuteResult (..)
-  , executeReturning
-  , executeReturning_
-
-    -- * Streaming Operations
-  , fold
-  , fold_
-  , foldNamed
-  , forEach
-  , forEach_
-  , forEachNamed
+    -- * Database Configuration
+  , SqliteDb (..)
 
     -- * Nested Transactions
   , savepoint
@@ -135,8 +99,14 @@ module Effectful.Sqlite
   , MigrationResult (..)
   , MigrationError (..)
 
-    -- * Low-level
-  , getRawConnection
+    -- * Retry
+  , retryBusy
+
+    -- * Re-exports from effectful
+  , Concurrent
+  , runConcurrent
+  , Log
+  , runLog
 
     -- * Re-exports from sqlite-simple
   , Connection
@@ -164,6 +134,8 @@ import Database.SQLite.Simple (Connection, FromRow (..), NamedParam (..), Only (
 import Database.SQLite.Simple.FromField (Field, FromField (..), ResultError (..), fieldData, returnError)
 import Database.SQLite.Simple.Ok (Ok (..))
 import Database.SQLite.Simple.ToField (ToField (..))
+import Effectful.Concurrent (Concurrent, runConcurrent)
+import Effectful.Log (Log, runLog)
 import Effectful.Sqlite.Effect
 import Effectful.Sqlite.Migration.Types
-import Effectful.Sqlite.Retry (RetryConfig (..), defaultRetryConfig)
+import Effectful.Sqlite.Types (SqliteDb (..))

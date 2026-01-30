@@ -43,11 +43,7 @@ library
     Effectful.Sqlite.Effect
     Effectful.Sqlite.Migration.Runner
     Effectful.Sqlite.Migration.Types
-    Effectful.Sqlite.Retry
     Effectful.Sqlite.Types
-
-  other-modules:
-    Effectful.Sqlite.Internal
 
   build-depends:
     base >= 4.17 && < 5,
@@ -58,6 +54,7 @@ library
     effectful >= 2.3,
     effectful-core >= 2.3,
     filepath >= 1.4,
+    log-effectful >= 1.0,
     random >= 1.2,
     resource-pool >= 0.4,
     sqlite-simple >= 0.4.18,
